@@ -47,6 +47,9 @@ class CustomerFeatures(BaseModel):
     euribor3m: float
     nr_employed: float
 
+@app.get("/")
+def home():
+    return {"status": "API is running successfully"}
 
 @app.post("/predict")
 def predict_deposit(features: CustomerFeatures):
