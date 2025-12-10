@@ -36,7 +36,6 @@ class CustomerData(BaseModel):
     contact: str = Field(..., description="Contact communication type (cellular, telephone)")
     month: str = Field(..., description="Last contact month (jan, feb, mar, etc.)")
     day_of_week: str = Field(..., description="Last contact day of week (mon, tue, wed, thu, fri)")
-    duration: int = Field(..., ge=0, description="Last contact duration in seconds")
     campaign: int = Field(..., ge=1, description="Number of contacts during this campaign")
     pdays: int = Field(..., ge=0, description="Days since last contact (999 means never contacted)")
     previous: int = Field(..., ge=0, description="Number of contacts before this campaign")
@@ -60,7 +59,6 @@ class CustomerData(BaseModel):
                 "contact": "telephone",
                 "month": "may",
                 "day_of_week": "mon",
-                "duration": 261,
                 "campaign": 1,
                 "pdays": 999,
                 "previous": 0,
