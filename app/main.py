@@ -78,9 +78,8 @@ class PredictionRequest(BaseModel):
 
 
 class SinglePrediction(BaseModel):
-    prediction: int
     prediction_label: str
-    probability: float
+    lead_score_probability: float
 
 
 class PredictionResponse(BaseModel):
