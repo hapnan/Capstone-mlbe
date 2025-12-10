@@ -1,5 +1,6 @@
 from fastapi import FastAPI
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, ConfigDict
+from typing import Literal, List
 import joblib
 import pandas as pd
 import os
@@ -23,6 +24,55 @@ app = FastAPI(
     title="Bank Lead Scoring API",
     description="API untuk memprediksi probabilitas nasabah melakukan deposit (Lead Score)."
 )
+
+class CustomerData(BaseModel):
+    age: int = Field(..., ge=18, le=100, description="Customer age")
+    job: str = Field(..., description="Job type (e.g., admin., blue-collar, entrepreneur, etc.)")
+    marital: str = Field(..., description="Marital status (married, single, divorced)")
+    education: str = Field(..., description="Education level (e.g., basic.4y, high.school, university.degree)")
+    default: str = Field(..., description="Has credit in default? (yes, no, unknown)")
+    housing: str = Field(..., description="Has housing loan? (yes, no, unknown)")
+    loan: str = Field(..., description="Has personal loan? (yes, no, unknown)")
+    contact: str = Field(..., description="Contact communication type (cellular, telephone)")
+    month: str = Field(..., description="Last contact month (jan, feb, mar, etc.)")
+    day_of_week: str = Field(..., description="Last contact day of week (mon, tue, wed, thu, fri)")
+    duration: int = Field(..., ge=0, description="Last contact duration in seconds")
+    campaign: int = Field(..., ge=1, description="Number of contacts during this campaign")
+    pdays: int = Field(..., ge=0, description="Days since last contact (999 means never contacted)")
+    previous: int = Field(..., ge=0, description="Number of contacts before this campaign")
+    poutcome: str = Field(..., description="Outcome of previous campaign (failure, nonexistent, success)")
+    emp_var_rate: float = Field(..., description="Employment variation rate")
+    cons_price_idx: float = Field(..., description="Consumer price index")
+    cons_conf_idx: float = Field(..., description="Consumer confidence index")
+    euribor3m: float = Field(..., description="Euribor 3 month rate")
+    nr_employed: float = Field(..., description="Number of employees")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "age": 56,
+                "job": "housemaid",
+                "marital": "married",
+                "education": "basic.4y",
+                "default": "no",
+                "housing": "no",
+                "loan": "no",
+                "contact": "telephone",
+                "month": "may",
+                "day_of_week": "mon",
+                "duration": 261,
+                "campaign": 1,
+                "pdays": 999,
+                "previous": 0,
+                "poutcome": "nonexistent",
+                "emp_var_rate": 1.1,
+                "cons_price_idx": 93.994,
+                "cons_conf_idx": -36.4,
+                "euribor3m": 4.857,
+                "nr_employed": 5191.0
+            }
+        }
+    )
 
 
 # SKEMA INPUT SESUAI 19 FITUR TRAINING
@@ -48,7 +98,19 @@ class CustomerFeatures(BaseModel):
     nr_employed: float
 
 class PredictionRequest(BaseModel):
-    data: CustomerFeatures | list[CustomerFeatures]
+    data: CustomerFeatures | List[CustomerFeatures]
+
+
+class SinglePrediction(BaseModel):
+    prediction: int
+    prediction_label: str
+    probability: float
+
+
+class PredictionResponse(BaseModel):
+    predictions: List[SinglePrediction]
+    count: int
+    status: str
 
 @app.get("/")
 def home():
@@ -58,36 +120,20 @@ def home():
 def predict_deposit(request: PredictionRequest):
     
     # Check if input is single or list
-    is_single = isinstance(request.data, CustomerFeatures)
-    features_list = [request.data] if is_single else request.data
+    customers = request.data if isinstance(request.data, list) else [request.data]
     
     # Convert all features to dataframe rows
-    rows = []
-    for features in features_list:
-        data = features.model_dump()
-        rows.append({
-            "age": data["age"],
-            "job": data["job"],
-            "marital": data["marital"],
-            "education": data["education"],
-            "default": data["default"],
-            "housing": data["housing"],
-            "loan": data["loan"],
-            "contact": data["contact"],
-            "month": data["month"],
-            "day_of_week": data["day_of_week"],
-            "campaign": data["campaign"],
-            "pdays": data["pdays"],
-            "previous": data["previous"],
-            "poutcome": data["poutcome"],
-            "emp.var.rate": data["emp_var_rate"],
-            "cons.price.idx": data["cons_price_idx"],
-            "cons.conf.idx": data["cons_conf_idx"],
-            "euribor3m": data["euribor3m"],
-            "nr.employed": data["nr_employed"]
-        })
+    customers_list = []
+    for customer in customers:
+        customer_dict = customer.model_dump()
+        # Rename keys to match expected column names
+        customer_dict['emp.var.rate'] = customer_dict.pop('emp_var_rate')
+        customer_dict['cons.price.idx'] = customer_dict.pop('cons_price_idx')
+        customer_dict['cons.conf.idx'] = customer_dict.pop('cons_conf_idx')
+        customer_dict['nr.employed'] = customer_dict.pop('nr_employed')
+        customers_list.append(customer_dict)
     
-    df_input = pd.DataFrame(rows)
+    df_input = pd.DataFrame(customers_list)
 
     # Prediksi
     try:
@@ -102,11 +148,11 @@ def predict_deposit(request: PredictionRequest):
                 "lead_score_probability": round(float(probas[i]), 4)
             })
         
-        return {
-            "predictions": results,
-            "count": len(results),
-            "status": "success"
-        }
+        return PredictionResponse(
+            predictions=results,
+            count=len(results),
+            status="success"
+        )
             
     except Exception as e:
         return {"error": f"Prediction failed: {e}"}
