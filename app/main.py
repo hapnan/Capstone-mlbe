@@ -26,6 +26,7 @@ app = FastAPI(
 )
 
 class CustomerData(BaseModel):
+    id: int | str | None = Field(None, description="Optional customer ID")
     age: int = Field(..., ge=18, le=100, description="Customer age")
     job: str = Field(..., description="Job type (e.g., admin., blue-collar, entrepreneur, etc.)")
     marital: str = Field(..., description="Marital status (married, single, divorced)")
@@ -78,6 +79,7 @@ class PredictionRequest(BaseModel):
 
 
 class SinglePrediction(BaseModel):
+    id: int | str | None = None
     prediction_label: str
     lead_score_probability: float
 
@@ -97,10 +99,13 @@ def predict_deposit(request: PredictionRequest):
     # Check if input is single or list
     customers = request.data if isinstance(request.data, list) else [request.data]
     
-    # Convert all features to dataframe rows
+    # Convert all features to dataframe rows and extract ids
     customers_list = []
+    ids = []
     for customer in customers:
         customer_dict = customer.model_dump()
+        # Extract and store id
+        ids.append(customer_dict.pop('id', None))
         # Rename keys to match expected column names
         customer_dict['emp.var.rate'] = customer_dict.pop('emp_var_rate')
         customer_dict['cons.price.idx'] = customer_dict.pop('cons_price_idx')
@@ -118,10 +123,13 @@ def predict_deposit(request: PredictionRequest):
         # Build results
         results = []
         for i in range(len(df_input)):
-            results.append({
+            result = {
                 "prediction_label": "Deposit" if preds[i] == 1 else "No Deposit",
                 "lead_score_probability": round(float(probas[i]), 4)
-            })
+            }
+            if ids[i] is not None:
+                result["id"] = ids[i]
+            results.append(result)
         
         return PredictionResponse(
             predictions=results,
