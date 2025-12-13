@@ -27,7 +27,7 @@ app = FastAPI(
 
 class CustomerData(BaseModel):
     id: int | str | None = Field(None, description="Optional customer ID")
-    age: int = Field(..., ge=18, le=100, description="Customer age")
+    age: int = Field(..., description="Customer age")
     job: str = Field(..., description="Job type (e.g., admin., blue-collar, entrepreneur, etc.)")
     marital: str = Field(..., description="Marital status (married, single, divorced)")
     education: str = Field(..., description="Education level (e.g., basic.4y, high.school, university.degree)")
